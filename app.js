@@ -1,7 +1,8 @@
 'use strict';
 const $=s=>document.querySelector(s),key='jkglobal.recorder.v1',h=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function initial(){return {rows:JK.seeds(),limit:3,pins:{},notes:[]}}
+function initial(){return {catalogVersion:2,rows:JK.seeds(),limit:3,pins:{},notes:[]}}
 let db;try{db=JSON.parse(localStorage.getItem(key));if(!db?.rows?.length||!db.pins||!Array.isArray(db.notes)||!Number.isFinite(db.limit))db=initial()}catch{db=initial()}
+if(JK.extendCatalog(db)){try{localStorage.setItem(key,JSON.stringify(db))}catch{/* The expanded catalogue remains usable for this session. */}}
 let id=db.rows.find(r=>r.id==='F-103')?.id??db.rows[0].id,peer='',tab='play',minute=2,ticker=0,toastTimer;
 const current=()=>db.rows.find(r=>r.id===id),compare=()=>db.rows.find(r=>r.id===peer);
 const options=(values,v)=>values.map(x=>`<option ${x===v?'selected':''}>${h(x)}</option>`).join('');
@@ -93,7 +94,7 @@ function action(){
 }
 function render(){stop();sync();$('#work').innerHTML=tab==='raw'?raw():tab==='play'?replay():action();if(tab==='play'){updateFrame();metrics()}}
 $('#batch').onchange=e=>{id=e.target.value;minute=2;render()};
-$('#product').onchange=e=>{id=db.rows.find(r=>r.product===e.target.value).id;peer='';minute=2;render()};
+$('#product').onchange=e=>{const group=db.rows.filter(r=>r.product===e.target.value);id=(group.find(r=>r.label===true)??group[0]).id;peer='';minute=2;render()};
 $('#compare').onchange=e=>{peer=e.target.value;render()};
 document.addEventListener('input',e=>{if(e.target.id==='scrub'){stop();minute=+e.target.value;updateFrame()}if(e.target.id==='limit')$('#lim').textContent=(+e.target.value).toFixed(1)});
 document.addEventListener('change',e=>{if(e.target.id==='limit'){db.limit=+e.target.value;save('점검 기준을 적용했습니다.');render();$('#limit').focus()}if(e.target.id==='after')$('#after-preview').textContent=followText(current(),db.rows.find(r=>r.id===e.target.value))});
@@ -106,12 +107,12 @@ document.addEventListener('click',e=>{
  case 'jump':stop();minute=maxGap(r,c);updateFrame();break;
  case 'pin':stop();db.pins[id]=pinNow();$('#evidence').innerHTML=renderEvidence();save(clock(minute)+' 시점을 일지에 담았습니다.');break;
  case 'fill':{const f=$('#noteForm').elements,p=db.pins[id],reason=JK.analyze(r).diff[0];f.note.value=(p?pinText(p)+' 확인. ':'')+(f.decision.value==='오탐으로 기록'?'비교 회차의 원료 규격과 투입 조건을 다시 대조해 오탐 사유를 남긴다.':reason.name+' 기록을 원료 검수표와 대조하고 다음 생산 회차의 유온 추이를 확인한다.');break}
- case 'sample':{const m=Math.max(...db.rows.map(x=>x.order))+1;csv('생산기록_연습.csv',JK.csvRows([{...JK.seeds()[2],id:'SAMPLE-01',order:m}]));break}
+ case 'sample':{const order=Math.max(...db.rows.map(x=>x.order))+1;let n=1;while(db.rows.some(x=>x.id==='SAMPLE-'+n))n++;csv(r.product+'_연습.csv',JK.csvRows([{...r,id:'SAMPLE-'+n,order}]));break}
  case 'import':modal('<h2>생산 기록 등록</h2><p>연습 CSV의 한글 열 이름을 사용하세요. 로트별로 0분부터 12분까지 한 줄씩 넣습니다.</p><form id="upload"><label>CSV 파일<input type="file" name="file" accept=".csv,text/csv" required></label><p id="error" role="status"></p><button>등록</button></form>');break;
  case 'export':if(!db.notes.length){say('먼저 점검 일지를 저장하세요.');break}csv('가공_점검일지.csv',[['생산 회차','저장 시각','검토 결과','조치 내용','검토 시점','후속 비교'],...db.notes.map(n=>[n.id,n.time,n.decision,n.note,n.pin?pinText(n.pin):'',n.follow])]);break;
  case 'data':modal('<h2>자료 관리</h2><p>이 브라우저에 생산 기록과 점검 일지를 보관합니다.</p><div class="tools"><button id="allcsv">생산 기록 CSV</button><button id="reset" class="outline">기본 자료 복원</button></div><div id="confirm"></div>');break;
  case 'allcsv':csv('생산기록.csv',JK.csvRows(db.rows));break;
- case 'reset':$('#confirm').innerHTML='<p class="hint">추가한 생산 기록, 담아 둔 시점과 일지를 지우고 기본 10회차로 돌아갑니다.</p><button id="resetYes">복원 확인</button>';break;
+ case 'reset':$('#confirm').innerHTML=`<p class="hint">추가한 생산 기록, 담아 둔 시점과 일지를 지우고 기본 ${JK.seeds().length}회차로 돌아갑니다.</p><button id="resetYes">복원 확인</button>`;break;
  case 'resetYes':db=initial();id='F-103';peer='';minute=2;$('#modal').close();render();save('기본 자료를 복원했습니다.');break;
  }
 });
