@@ -72,7 +72,42 @@ const JK=(()=>{
  }
  const added=[];let duplicate=0;for(const r of byId.values()){if(r.oil.includes(null))throw Error(r.id+'의 0~12분 기록 중 누락된 값이 있습니다.');if(ids.has(r.id)){duplicate++;continue}if(orders.has(r.order))throw Error('이미 등록된 생산순번입니다. '+r.order);orders.add(r.order);added.push(r)}return {added,duplicate};
  }
- return {products,refs,models,seeds,extendCatalog,analyze,recovery,median,csvRows,importRecords};
+ const weighHeaders=['로트','제품','시료수_개','시료총중량_g','투입량_kg'];
+ function weighSample(rows){
+   return [weighHeaders,...rows.map((r,i)=>[r.id,r.product,10,i===rows.length-1?'':sample(r.grams*10),r.kg])];
+ }
+ function readWeights(text,rows){
+   const [head,...lines]=parse(text);
+   if(!head||head.join('|')!==weighHeaders.join('|')||!lines.length)throw Error('계량표 양식의 제목과 한 줄 이상의 계량 기록이 필요합니다.');
+   const lots=new Map(rows.map(r=>[r.id,r])),seen=new Set();
+   return lines.map((line,i)=>{
+     const [id,product,...cells]=line;
+     if(line.length!==5||!lots.has(id)||lots.get(id).product!==product)throw Error((i+2)+'행의 로트와 제품을 생산 기록에서 찾을 수 없습니다.');
+     if(seen.has(id))throw Error(id+' 회차가 두 줄 이상입니다. 회차마다 한 줄로 정리하세요.');
+     seen.add(id);
+     const [count,total,kg]=cells.map(s=>s===''?null:Number(s));
+     if([count,total,kg].some(n=>n!==null&&(!Number.isFinite(n)||n<=0))||(count!==null&&!Number.isSafeInteger(count)))throw Error((i+2)+'행의 계량 단위와 숫자를 확인하세요.');
+     const grams=count&&total?sample(total/count):null;
+     if(grams!==null&&(!Number.isFinite(grams)||grams<=0))throw Error((i+2)+'행의 시료 수량과 중량을 확인하세요.');
+     const issues=[];
+     const model=models[products.indexOf(product)];
+     for(const [n,value] of [grams,kg].entries()){
+       const name=n===0?'평균 조각 무게':'투입량';
+       if(value===null){issues.push(name+' 누락');continue}
+       const distance=(value-model[n].center)/model[n].scale;
+       if(Math.abs(distance)>=3)issues.push(name+(distance>0?' 높음':' 낮음'));
+     }
+     const status=grams===null||kg===null?'누락':issues.length?'검토 필요':'자동 반영';
+     return {id,product,count,total,grams,kg,issues,status};
+   });
+ }
+ function applyWeights(row,item){
+   if(item.grams===null||item.kg===null)throw Error('누락된 측정값이 있습니다.');
+   if(row.grams!==item.grams||row.kg!==item.kg)row.label=null;
+   row.grams=item.grams;
+   row.kg=item.kg;
+ }
+ return {products,refs,models,seeds,extendCatalog,analyze,recovery,median,csvRows,importRecords,weighSample,readWeights,applyWeights};
 })();
 if(typeof module!=='undefined')module.exports=JK;
 

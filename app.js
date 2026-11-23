@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),key='jkglobal.recorder.v1',h=v=>String(v??'
 function initial(){return {catalogVersion:2,rows:JK.seeds(),limit:3,pins:{},notes:[]}}
 let db;try{db=JSON.parse(localStorage.getItem(key));if(!db?.rows?.length||!db.pins||!Array.isArray(db.notes)||!Number.isFinite(db.limit))db=initial()}catch{db=initial()}
 if(JK.extendCatalog(db)){try{localStorage.setItem(key,JSON.stringify(db))}catch{/* The expanded catalogue remains usable for this session. */}}
-let id=db.rows.find(r=>r.id==='F-103')?.id??db.rows[0].id,peer='',tab='play',minute=2,ticker=0,toastTimer;
+let id=db.rows.find(r=>r.id==='F-103')?.id??db.rows[0].id,peer='',tab=new URLSearchParams(location.search).get('tab')==='raw'?'raw':'play',minute=2,ticker=0,toastTimer;
 const current=()=>db.rows.find(r=>r.id===id),compare=()=>db.rows.find(r=>r.id===peer);
 const options=(values,v)=>values.map(x=>`<option ${x===v?'selected':''}>${h(x)}</option>`).join('');
 const clock=n=>String(n).padStart(2,'0')+':00';
@@ -22,13 +22,8 @@ function sync(){
  const peers=group.filter(x=>x.id!==id);
  if(!peers.some(x=>x.id===peer))peer=(peers.filter(x=>x.order<r.order).at(-1)??peers[0]).id;
  $('#product').innerHTML=options(JK.products,r.product);$('#batch').innerHTML=options(group.map(x=>x.id),r.id);$('#compare').innerHTML=options(peers.map(x=>x.id),peer);
+ $('#compare').disabled=tab==='raw';
  document.querySelectorAll('[data-tab]').forEach(b=>{if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
-}
-function defs(rows){return '<dl class="facts">'+rows.map(([label,v])=>`<div><dt>${h(label)}</dt><dd>${h(v)}</dd></div>`).join('')+'</dl>'}
-function field(name,label,value,unitStep='0.1',min='0.1'){return `<label>${label}<input type="number" name="${name}" required min="${min}" step="${unitStep}" value="${value}"></label>`}
-function raw(){
- const r=current(),c=compare();
- return `<div class="grid"><section class="panel"><h2>${h(id)} 원료 검수표</h2><p class="sub">${h(r.product)} 생산순번 ${r.order}</p><form id="rawForm" class="form">${field('grams','평균 조각 무게 (g)',r.grams)}${field('kg','회차 투입량 (kg)',r.kg)}${field('brine','염지 시간 (분)',r.brine)}${field('acid','시작 산가 (mg KOH/g)',r.acid,'0.01','0')}<button>검수값 저장</button></form><div class="tools"><button class="outline" id="sample">연습 CSV 받기</button><button class="outline" id="import">생산 기록 등록</button></div></section><section class="panel"><h2>회차 간 차이</h2><p class="sub">${h(id)}에서 ${h(peer)}의 값을 뺀 결과입니다.</p>${defs([['조각 무게',signed(r.grams-c.grams)+' g'],['투입량',signed(r.kg-c.kg)+' kg'],['염지 시간',signed(r.brine-c.brine)+'분'],['시작 산가',signed(r.acid-c.acid)+' mg KOH/g']])}</section></div>`
 }
 function maxGap(r,c){let best=0;r.oil.forEach((n,i)=>{if(Math.abs(n-c.oil[i])>Math.abs(r.oil[best]-c.oil[best]))best=i});return best}
 function chart(r,c){
@@ -110,19 +105,17 @@ document.addEventListener('click',e=>{
  case 'sample':{const order=Math.max(...db.rows.map(x=>x.order))+1;let n=1;while(db.rows.some(x=>x.id==='SAMPLE-'+n))n++;csv(r.product+'_연습.csv',JK.csvRows([{...r,id:'SAMPLE-'+n,order}]));break}
  case 'import':modal('<h2>생산 기록 등록</h2><p>연습 CSV의 한글 열 이름을 사용하세요. 로트별로 0분부터 12분까지 한 줄씩 넣습니다.</p><form id="upload"><label>CSV 파일<input type="file" name="file" accept=".csv,text/csv" required></label><p id="error" role="status"></p><button>등록</button></form>');break;
  case 'export':if(!db.notes.length){say('먼저 점검 일지를 저장하세요.');break}csv('가공_점검일지.csv',[['생산 회차','저장 시각','검토 결과','조치 내용','검토 시점','후속 비교'],...db.notes.map(n=>[n.id,n.time,n.decision,n.note,n.pin?pinText(n.pin):'',n.follow])]);break;
- case 'data':modal('<h2>자료 관리</h2><p>이 브라우저에 생산 기록과 점검 일지를 보관합니다.</p><div class="tools"><button id="allcsv">생산 기록 CSV</button><button id="reset" class="outline">기본 자료 복원</button></div><div id="confirm"></div>');break;
+ case 'data':modal('<h2>자료 관리</h2><p>이 브라우저에 생산 기록과 점검 일지를 보관합니다.</p><div class="tools"><button id="allcsv">생산 기록 CSV</button><button id="sample" class="outline">연습 CSV 받기</button><button id="import" class="outline">생산 기록 등록</button><button id="reset" class="outline">기본 자료 복원</button></div><div id="confirm"></div>');break;
  case 'allcsv':csv('생산기록.csv',JK.csvRows(db.rows));break;
  case 'reset':$('#confirm').innerHTML=`<p class="hint">추가한 생산 기록, 담아 둔 시점과 일지를 지우고 기본 ${JK.seeds().length}회차로 돌아갑니다.</p><button id="resetYes">복원 확인</button>`;break;
  case 'resetYes':db=initial();id='F-103';peer='';minute=2;$('#modal').close();render();save('기본 자료를 복원했습니다.');break;
  }
 });
 document.addEventListener('submit',async e=>{
- const f=e.target;if(!['rawForm','noteForm','upload'].includes(f.id))return;e.preventDefault();const el=f.elements,r=current();
+ const f=e.target;if(!['noteForm','upload'].includes(f.id))return;e.preventDefault();const el=f.elements,r=current();
  if(f.id==='upload'){try{const {added,duplicate}=JK.importRecords(await el.file.files[0].text(),db.rows);db.rows.push(...added);if(added.length){id=added[0].id;peer=''}$('#modal').close();render();save('신규 '+added.length+'회차, 중복 제외 '+duplicate+'회차')}catch(err){$('#error').textContent=err.message}return}
- if(f.id==='rawForm'){const fields=['grams','kg','brine','acid'];if(fields.some(k=>r[k]!==+el[k].value)){fields.forEach(k=>r[k]=+el[k].value);r.label=null}render();save('검수값을 저장했습니다.');return}
  const note=el.note.value.trim();if(!note){say('조치 내용을 입력하세요.');return}const follow=db.rows.find(x=>x.id===el.after.value);
  db.notes.push({id,time:new Date().toISOString(),pin:db.pins[id]?{...db.pins[id]}:null,follow:followText(r,follow),decision:el.decision.value,note});render();save('점검 일지에 저장했습니다.');
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});
 render();
-

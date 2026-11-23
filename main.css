@@ -162,3 +162,17 @@ dialog form[method=dialog] { margin-top: 16px }
   #graph text { font-size: 18px }
   .form { gap: 12px }
 }
+
+.weigh-actions {margin:0}
+.weigh-reading,.weigh-empty {margin:16px 0;padding:18px;border-radius:11px;background:var(--wash)}
+.weigh-reading span,.weigh-reading small {display:block;color:var(--muted)}
+.weigh-reading strong {font-size:32px;display:block;color:var(--accent)}
+.weigh-filter {margin-bottom:14px}
+.weigh-filter button {background:#edf1f1;color:var(--muted)}
+.weigh-filter button[aria-pressed=true] {background:var(--ink);color:white}
+.weigh-lot {display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;width:100%;text-align:left;margin:7px 0;padding:14px;color:var(--ink);background:white;border:1px solid var(--line)}
+.weigh-lot[aria-pressed=true] {border-color:var(--accent);background:var(--wash)}
+.weigh-lot small {font-weight:600;color:var(--accent)}
+#weighUpload {margin-top:16px}
+#weighUpload input {margin:7px 0}
+@media(max-width:500px){.weigh-lot {gap:6px;padding:10px;font-size:14px}}
