@@ -1,0 +1,9 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>제이케이글로벌 가공 기록실</title><link rel="stylesheet" href="main.css"></head><body>
+<header><div class="bar"><img src="assets/jk-logo.png" alt="제이케이글로벌"><span>생산품질부</span><button id="data" class="outline">자료 관리</button></div></header>
+<main><section class="headline"><div><h1>가공 기록실</h1><p>생산 회차를 골라 원료와 튀김 기록을 확인하세요.</p></div><figure><img src="assets/equipment.jpg" alt="제이케이글로벌 제조 소개에 실린 후라이어"><figcaption><a href="https://jk-global.kr/business/production/" target="_blank" rel="noopener">제조 설비 보기 ↗</a></figcaption></figure></section>
+<div class="selectors"><label>제품<select id="product"></select></label><label>생산 회차<select id="batch"></select></label><label>비교 회차<select id="compare"></select></label></div>
+<nav aria-label="업무 선택"><button data-tab="raw">원료 검수</button><button data-tab="play">튀김 기록 재생</button><button data-tab="note">점검 일지</button></nav>
+<section id="work"></section></main>
+<footer>훈련용 생산 기록 <span>제이케이글로벌 가공 기록실</span></footer>
+<dialog id="modal"><div id="body"></div><form method="dialog"><button class="outline">닫기</button></form></dialog><div id="toast" role="status"></div><script src="model.js"></script><script src="app.js"></script></body></html>
+
