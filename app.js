@@ -31,10 +31,22 @@ function raw(){
 }
 function maxGap(r,c){let best=0;r.oil.forEach((n,i)=>{if(Math.abs(n-c.oil[i])>Math.abs(r.oil[best]-c.oil[best]))best=i});return best}
 function chart(r,c){
- const all=[...r.oil,...c.oil],lo=Math.floor((Math.min(...all)-2)/5)*5,hi=Math.ceil((Math.max(...all)+2)/5)*5;
- const x=i=>50+i*49.6,y=n=>147-128*(n-lo)/(hi-lo),path=data=>data.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
- const grid=Array.from({length:5},(_,i)=>lo+(hi-lo)*i/4).map(n=>`<path d="M49 ${y(n)}H648" stroke="#4e5b55" stroke-width=".8"/><text x="42" y="${y(n)+4}" text-anchor="end" fill="#c7d1c9">${fmt(n)}</text>`).join('');
- return `<svg id="graph" viewBox="0 0 670 187" role="img" aria-label="유온 추이 그래프. 가로축은 0부터 12분까지이며 세로축은 섭씨 온도입니다.">${grid}${[0,2,4,6,8,10,12].map(i=>`<text x="${x(i)}" y="174" fill="#c7d1c9" text-anchor="middle">${i}분</text>`).join('')}<path d="${path(c.oil)}" fill="none" stroke="#bdd5c9" stroke-width="2.6" stroke-dasharray="7 5"/><path d="${path(r.oil)}" fill="none" stroke="#ffc361" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="${x(minute)}" x2="${x(minute)}" y1="6" y2="151" stroke="#eee" stroke-dasharray="2 4"/><circle cx="${x(minute)}" cy="${y(r.oil[minute])}" r="5.5" fill="#ffc361" stroke="#29302b" stroke-width="2"/></svg>`
+ const values = [...r.oil, ...c.oil];
+ const lo = Math.floor((Math.min(...values)-2)/5)*5;
+ const hi = Math.ceil((Math.max(...values)+2)/5)*5;
+ const x = i => 50+i*49.6;
+ const y = n => 167-142*(n-lo)/(hi-lo);
+ const path = data => data.map((v,i) => (i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
+ const grid = Array.from({length:5},(_,i) => lo+(hi-lo)*i/4).map(n =>
+   `<path class="gridline" d="M49 ${y(n)}H648"/><text x="41" y="${y(n)+4}" text-anchor="end">${fmt(n)}</text>`).join('');
+ const ticks = [0,2,4,6,8,10,12].map(i => `<text x="${x(i)}" y="192" text-anchor="middle">${i}분</text>`).join('');
+ return `<svg id="graph" viewBox="0 0 670 206" role="img" aria-label="생산 회차와 비교 회차의 0분부터 12분까지 유온 추이">
+   <defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#158579" stop-opacity=".23"/><stop offset="1" stop-color="#158579" stop-opacity=".02"/></linearGradient></defs>
+   ${grid}${ticks}<path d="${path(r.oil)} L${x(12)} 167 H50 Z" fill="url(#area)"/>
+   <path class="compare-line" d="${path(c.oil)}"/><path class="current-line" d="${path(r.oil)}"/>
+   <line class="cursor" x1="${x(minute)}" x2="${x(minute)}" y1="15" y2="167"/>
+   <circle class="peer-dot" cx="${x(minute)}" cy="${y(c.oil[minute])}" r="4"/>
+   <circle class="current-dot" cx="${x(minute)}" cy="${y(r.oil[minute])}" r="6"/></svg>`;
 }
 function pinNow(){const r=current(),c=compare();return {id,peer,minute,value:r.oil[minute],other:c.oil[minute]}}
 function pinText(p){return `${p.id} / ${clock(p.minute)} / ${fmt(p.value)} °C (비교 ${p.peer}: ${fmt(p.other)} °C)`}
@@ -44,9 +56,33 @@ function updateFrame(){
  const action=minute===0?'투입 직전':minute===1?'원료 투입':minute===12?'기록 종료':'투입 후 '+minute+'분';$('#event').textContent=action;
 }
 function renderEvidence(){const p=db.pins[id];return p?`<p class="evidence">${h(pinText(p))}</p>`:'<p class="hint">재생 화면에서 시점을 담으면 두 회차의 온도가 여기에 남습니다.</p>'}
+function recoveryBar(row,minutes,other=false){
+ const value = minutes===null ? '미회복' : minutes+'분';
+ return `<div class="recovery-row ${other?'other':''}"><span>${h(row.id)}</span><div class="track" aria-hidden="true"><i style="width:${(minutes??12)/12*100}%"></i></div><strong>${value}</strong></div>`;
+}
 function replay(){
  const r=current(),c=compare(),a=JK.analyze(r),r1=JK.recovery(r),r2=JK.recovery(c);
- return `<div class="grid"><section class="monitor"><div class="spread"><h2>유온 기록</h2><span id="at" class="clock"></span></div><div class="readout"><strong id="temperature" class="live"></strong><span id="event"></span></div><div class="sub" id="delta"></div><div id="plot"></div><div class="legend"><span><i></i>${h(id)}</span><span><i class="peer"></i>${h(peer)} 비교</span></div><label class="sub" for="scrub">재생 위치</label><input type="range" id="scrub" min="0" max="12" step="1" value="${minute}"><div class="tools"><button id="toggle">재생</button><button id="jump">최대 편차로</button><button id="pin">이 시점 담기</button></div></section><section class="panel"><h2>이 회차에서 볼 것</h2>${defs([['최저 유온',fmt(Math.min(...r.oil))+' °C'],['유온 회복',r1===null?'기록 내 미회복':r1+'분'],[peer+' 회복',r2===null?'기록 내 미회복':r2+'분'],['가장 큰 차이',maxGap(r,c)+'분 시점']])}<p class="hint">투입 직전 유온에서 3 °C 낮은 지점까지 다시 올라온 시간을 비교합니다.</p><h3>일지에 담은 시점</h3><div id="evidence">${renderEvidence()}</div></section></div><section class="panel block"><div class="spread"><h2>점검 후보 선별</h2><strong class="mark">${a.score>=db.limit?'점검 후보':'참고 범위'} / 점수 ${fmt(a.score)}</strong></div><p class="sub">제품별 참고 생산 80회의 중앙값과 편차를 학습해 차이가 큰 항목부터 표시합니다.</p><table><thead><tr><th>비교 항목</th><th>참고 중앙값</th><th>${h(id)}</th></tr></thead><tbody>${a.diff.slice(0,3).map(x=>`<tr><td>${x.name}</td><td>${fmt(x.center)} ${x.unit}</td><td>${x.name==='회복 시간'&&r1===null?'미회복':fmt(x.value)+' '+x.unit}</td></tr>`).join('')}</tbody></table><label class="check">점검 기준 <b id="lim">${db.limit.toFixed(1)}</b><input type="range" id="limit" min="1" max="10" step="0.1" value="${db.limit}"></label><p class="sub" id="validation"></p></section>`
+ return `<div class="grid playback">
+   <section class="panel monitor">
+     <div class="spread"><h2>유온 기록</h2><span class="timecode" id="at"></span></div>
+     <div class="readout"><strong id="temperature" class="live"></strong><span id="event"></span></div>
+     <div class="sub" id="delta"></div><div id="plot"></div>
+     <div class="legend"><span><i></i>${h(id)}</span><span><i class="peer"></i>${h(peer)} 비교</span></div>
+     <div class="transport"><label class="sr-only" for="scrub">재생 위치</label><input type="range" id="scrub" min="0" max="12" step="1" value="${minute}">
+     <div class="tools"><button id="toggle">재생</button><button class="outline" id="jump">최대 편차로</button><button class="outline" id="pin">이 시점 담기</button></div></div>
+   </section>
+   <section class="panel summary"><h2>회차 비교</h2>
+     <div class="tiles"><div><span>최저 유온</span><strong>${fmt(Math.min(...r.oil))}<small>°C</small></strong></div><div><span>최대 편차 시점</span><strong>${maxGap(r,c)}<small>분</small></strong></div></div>
+     <h3>유온 회복 시간</h3>
+     ${recoveryBar(r,r1)}${recoveryBar(c,r2,true)}
+     <p class="hint">투입 직전보다 3 °C 낮은 온도까지 다시 오르는 데 걸린 시간입니다.</p>
+     <div class="pinned"><h3>일지에 담은 시점</h3><div id="evidence">${renderEvidence()}</div></div>
+   </section></div>
+   <section class="panel block"><div class="spread"><h2>점검 후보 선별</h2><strong class="mark">${a.score>=db.limit?'점검 후보':'참고 범위'} / 점수 ${fmt(a.score)}</strong></div>
+     <div class="analysis"><div><p class="sub">제품별 참고 기록 80회에서 차이가 큰 항목을 골랐습니다.</p>
+     <table><thead><tr><th>비교 항목</th><th>참고 중앙값</th><th>${h(id)}</th></tr></thead><tbody>${a.diff.slice(0,3).map(x=>`<tr><td>${x.name}</td><td>${fmt(x.center)} ${x.unit}</td><td>${x.name==='회복 시간'&&r1===null?'미회복':fmt(x.value)+' '+x.unit}</td></tr>`).join('')}</tbody></table></div>
+     <div class="threshold"><label class="check">점검 기준 <b id="lim">${db.limit.toFixed(1)}</b><input type="range" id="limit" min="1" max="10" step="0.1" value="${db.limit}"></label><p class="sub" id="validation"></p></div></div>
+   </section>`;
 }
 function metrics(){let fp=0,fn=0,n=0;for(const r of db.rows){if(typeof r.label!=='boolean')continue;n++;const is=JK.analyze(r).score>=db.limit;if(is&&!r.label)fp++;if(!is&&r.label)fn++}$('#validation').textContent=`별도 검증 ${n}건 중 오탐 ${fp}건, 누락 ${fn}건`}
 function followText(r,f){if(!f)return '';const recovery=x=>JK.recovery(x)===null?'미회복':JK.recovery(x)+'분';return `${r.id} → ${f.id} / 투입량 ${r.kg} → ${f.kg} kg / 회복 ${recovery(r)} → ${recovery(f)}`}
